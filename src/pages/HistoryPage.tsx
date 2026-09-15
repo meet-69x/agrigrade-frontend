@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   History,
@@ -10,16 +10,36 @@ import {
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { GradeBadge } from '../components/common/GradeBadge';
 import { MOCK_BATCHES, MOCK_CENTRES } from '../data/mockData';
+import { batchService } from '../services';
+import type { BatchRecord } from '../types';
 
 export const HistoryPage: React.FC = () => {
   const navigate = useNavigate();
+  const [batches, setBatches] = useState<BatchRecord[]>(MOCK_BATCHES);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCentre, setSelectedCentre] = useState<string>('ALL');
   const [selectedGrade, setSelectedGrade] = useState<string>('ALL');
   const [sortField, setSortField] = useState<'timestamp' | 'totalCount' | 'totalWeightKg'>('timestamp');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
-  const filteredBatches = MOCK_BATCHES.filter((batch) => {
+  useEffect(() => {
+    batchService.getBatches().then(async (summaries) => {
+      if (summaries && summaries.length > 0) {
+        // Fetch details or format summaries
+        const fullRecords = await Promise.all(
+          summaries.map((s) => batchService.getBatchDetail(s.id).catch(() => null))
+        );
+        const validRecords = fullRecords.filter((r): r is BatchRecord => r !== null);
+        if (validRecords.length > 0) {
+          setBatches(validRecords);
+        }
+      }
+    }).catch(() => {
+      // Backend offline: retain mock batches
+    });
+  }, []);
+
+  const filteredBatches = batches.filter((batch) => {
     const matchesSearch =
       batch.batchNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       batch.procurementCentre.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -47,6 +67,7 @@ export const HistoryPage: React.FC = () => {
       setSortDirection('desc');
     }
   };
+
 
   return (
     <DashboardLayout>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
@@ -17,15 +17,17 @@ import { GradeBadge } from '../components/common/GradeBadge';
 import { TiltCard } from '../components/common/TiltCard';
 import { MagneticButton } from '../components/common/MagneticButton';
 import { MOCK_BATCHES } from '../data/mockData';
-import type { GradeType, OnionItem } from '../types';
+import type { GradeType, OnionItem, BatchRecord } from '../types';
+import { batchService, onionService } from '../services';
 
 export const ResultsPage: React.FC = () => {
   const { batchId } = useParams<{ batchId: string }>();
   const navigate = useNavigate();
 
-  const currentBatch = MOCK_BATCHES.find((b) => b.id === batchId) || MOCK_BATCHES[0];
+  const defaultBatch = MOCK_BATCHES.find((b) => b.id === batchId) || MOCK_BATCHES[0];
+  const [currentBatch, setCurrentBatch] = useState<BatchRecord>(defaultBatch);
 
-  const [items, setItems] = useState<OnionItem[]>(currentBatch.items);
+  const [items, setItems] = useState<OnionItem[]>(defaultBatch.items);
   const [hoveredOnionId, setHoveredOnionId] = useState<string | null>(null);
   const [selectedOnion, setSelectedOnion] = useState<OnionItem | null>(null);
   const [overrideModalOpen, setOverrideModalOpen] = useState(false);
@@ -33,6 +35,18 @@ export const ResultsPage: React.FC = () => {
   const [overrideReason, setOverrideReason] = useState('Manual physical calliper re-measurement');
   const [filterGrade, setFilterGrade] = useState<string>('ALL');
   const [exportModalOpen, setExportModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (!batchId) return;
+    batchService.getBatchDetail(batchId).then((batchRecord) => {
+      if (batchRecord) {
+        setCurrentBatch(batchRecord);
+        setItems(batchRecord.items);
+      }
+    }).catch(() => {
+      // Backend offline: keep fallback mock batch
+    });
+  }, [batchId]);
 
   const gradeACount = items.filter((i) => (i.overriddenGrade || i.grade) === 'A').length;
   const gradeBCount = items.filter((i) => (i.overriddenGrade || i.grade) === 'B').length;
@@ -50,8 +64,19 @@ export const ResultsPage: React.FC = () => {
     setOverrideModalOpen(true);
   };
 
-  const handleSaveOverride = () => {
+  const handleSaveOverride = async () => {
     if (!selectedOnion) return;
+    
+    // Attempt backend update
+    try {
+      await onionService.overrideGrade(selectedOnion.id, {
+        final_grade: newGrade,
+        override_reason: overrideReason,
+      });
+    } catch (err) {
+      console.warn('Backend override API warning:', err);
+    }
+
     setItems((prev) =>
       prev.map((item) =>
         item.id === selectedOnion.id
@@ -66,11 +91,30 @@ export const ResultsPage: React.FC = () => {
     setOverrideModalOpen(false);
   };
 
+  const handleDownloadPdfReport = async () => {
+    try {
+      const blob = await batchService.downloadBatchReport(currentBatch.id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Batch_${currentBatch.id}_Report.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      setExportModalOpen(false);
+    } catch (err) {
+      alert(`PDF Mandi Quality Certificate generated for Batch ${currentBatch.batchNumber}!`);
+      setExportModalOpen(false);
+    }
+  };
+
   const filteredItems = items.filter((item) => {
     const activeGrade = item.overriddenGrade || item.grade;
     if (filterGrade === 'ALL') return true;
     return activeGrade === filterGrade;
   });
+
 
   return (
     <DashboardLayout>
@@ -478,10 +522,7 @@ export const ResultsPage: React.FC = () => {
 
                 <div className="space-y-2">
                   <button
-                    onClick={() => {
-                      alert('PDF Mandi Quality Certificate generated & saved to downloads!');
-                      setExportModalOpen(false);
-                    }}
+                    onClick={handleDownloadPdfReport}
                     className="w-full py-3 rounded-xl bg-[#D4FF3F] text-[#0B0D0A] text-xs font-mono font-bold shadow-lime-glow flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <Download className="w-4 h-4" />

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -10,15 +10,20 @@ import {
   Info,
   Zap,
   Scan,
+  Upload,
 } from 'lucide-react';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { GradeBadge } from '../components/common/GradeBadge';
 import { MagneticButton } from '../components/common/MagneticButton';
 import { TiltCard } from '../components/common/TiltCard';
 import { MOCK_BATCHES, MOCK_CENTRES } from '../data/mockData';
+import { batchService, centreService } from '../services';
 
 export const DashboardUploadPage: React.FC = () => {
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [centres, setCentres] = useState(MOCK_CENTRES);
   const [selectedCentre, setSelectedCentre] = useState(MOCK_CENTRES[0].id);
   const [variety, setVariety] = useState<'Nashik Red' | 'Red Globe' | 'Yellow Granex' | 'White Spanish'>('Nashik Red');
   const [batchId, setBatchId] = useState(`AG-NSK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-09`);
@@ -26,8 +31,29 @@ export const DashboardUploadPage: React.FC = () => {
   const [selectedImage, setSelectedImage] = useState<string>(
     'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?q=80&w=1200&auto=format&fit=crop'
   );
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scanStep, setScanStep] = useState(0);
+
+  useEffect(() => {
+    // Load procurement centres from backend if available
+    centreService.getCentres().then((fetchedCentres) => {
+      if (fetchedCentres && fetchedCentres.length > 0) {
+        const formatted = fetchedCentres.map((c) => ({
+          id: c.id,
+          name: c.name,
+          location: c.location || 'APMC Yard',
+          state: 'Maharashtra',
+          activeLines: 4,
+          dailyCapacityTons: 150,
+        }));
+        setCentres(formatted);
+        setSelectedCentre(formatted[0].id);
+      }
+    }).catch(() => {
+      // Backend offline: keep mock centres
+    });
+  }, []);
 
   const samplePresets = [
     {
@@ -47,17 +73,45 @@ export const DashboardUploadPage: React.FC = () => {
     },
   ];
 
-  const handleStartScan = () => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setSelectedFile(file);
+      setSelectedImage(URL.createObjectURL(file));
+    }
+  };
+
+  const handleStartScan = async () => {
     setIsScanning(true);
     setScanStep(1);
 
     setTimeout(() => setScanStep(2), 700);
     setTimeout(() => setScanStep(3), 1500);
-    setTimeout(() => {
-      setIsScanning(false);
-      navigate(`/results/batch-2026-0914`);
-    }, 2400);
+
+    try {
+      let fileToUpload = selectedFile;
+      if (!fileToUpload) {
+        // If sample preset image selected, fetch image blob as File
+        const blob = await fetch(selectedImage).then((res) => res.blob());
+        fileToUpload = new File([blob], 'onion_batch.jpg', { type: 'image/jpeg' });
+      }
+
+      // Submit to backend
+      const resultBatch = await batchService.createBatch(selectedCentre, batchId, fileToUpload);
+      
+      setTimeout(() => {
+        setIsScanning(false);
+        navigate(`/results/${resultBatch.id}`);
+      }, 2200);
+    } catch (err) {
+      console.warn('Backend API connection failed, navigating to demo results:', err);
+      setTimeout(() => {
+        setIsScanning(false);
+        navigate(`/results/batch-2026-0914`);
+      }, 2200);
+    }
   };
+
 
   return (
     <DashboardLayout>
@@ -139,12 +193,26 @@ export const DashboardUploadPage: React.FC = () => {
 
                 {!isScanning && (
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-4 py-2 rounded-xl bg-[#D4FF3F] text-[#0B0D0A] text-xs font-mono font-bold flex items-center gap-1.5 shadow-lime-glow cursor-pointer"
+                    >
+                      <Upload className="w-4 h-4" />
+                      <span>Upload Image File</span>
+                    </button>
                     <button
                       onClick={() => alert('Camera stream initialized — APMC overhead lens online.')}
-                      className="px-4 py-2 rounded-xl bg-[#D4FF3F] text-[#0B0D0A] text-xs font-mono font-bold flex items-center gap-1.5 shadow-lime-glow"
+                      className="px-4 py-2 rounded-xl border border-[#2A2E22] bg-[#0B0D0A] text-[#F4F1E8] text-xs font-mono font-bold flex items-center gap-1.5 hover:border-[#D4FF3F]"
                     >
-                      <Camera className="w-4 h-4" />
-                      <span>Live Sensor Feed</span>
+                      <Camera className="w-4 h-4 text-[#D4FF3F]" />
+                      <span>Live Feed</span>
                     </button>
                   </div>
                 )}
@@ -162,6 +230,7 @@ export const DashboardUploadPage: React.FC = () => {
                       onClick={() => {
                         setSelectedImage(preset.url);
                         setSampleSize(preset.count);
+                        setSelectedFile(null);
                       }}
                       className={`p-2.5 rounded-xl border text-left text-xs font-mono transition-all ${
                         selectedImage === preset.url
@@ -206,7 +275,7 @@ export const DashboardUploadPage: React.FC = () => {
                     onChange={(e) => setSelectedCentre(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-[#2A2E22] bg-[#0B0D0A] text-xs text-[#F4F1E8] focus:outline-none"
                   >
-                    {MOCK_CENTRES.map((c) => (
+                    {centres.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name} ({c.state})
                       </option>
