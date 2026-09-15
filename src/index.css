@@ -1,0 +1,85 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+@layer base {
+  :root {
+    --bg-primary: #0B0D0A;
+    --bg-surface: #14170F;
+    --text-primary: #F4F1E8;
+    --text-muted: #8C9080;
+    --accent-lime: #D4FF3F;
+  }
+
+  html {
+    color-scheme: dark;
+    background-color: #0B0D0A;
+    color: #F4F1E8;
+  }
+
+  body {
+    font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: #0B0D0A;
+    color: #F4F1E8;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: 'Clash Display', sans-serif;
+    letter-spacing: -0.02em;
+  }
+
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer utilities {
+  /* Tech Glassmorphism Card Base */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.035);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .glass-card-surface {
+    background: #14170F;
+    border: 1px solid #2A2E22;
+  }
+
+  /* High-Contrast Duotone Image Treatment */
+  .duotone-dark-lime {
+    position: relative;
+  }
+  .duotone-dark-lime::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(11, 13, 10, 0.7) 0%, rgba(212, 255, 63, 0.15) 100%);
+    mix-blend-mode: hard-light;
+    pointer-events: none;
+  }
+
+  /* Electric Lime Hover Glow */
+  .hover-glow-lime {
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .hover-glow-lime:hover {
+    border-color: #D4FF3F;
+    box-shadow: 0 0 20px rgba(212, 255, 63, 0.2);
+  }
+}
+
+/* Custom Smooth Dark Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0B0D0A;
+}
+::-webkit-scrollbar-thumb {
+  background: #2A2E22;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #D4FF3F;
+}
