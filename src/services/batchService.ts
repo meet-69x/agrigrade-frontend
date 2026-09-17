@@ -32,10 +32,27 @@ export interface BackendBatchDetail extends BackendBatchSummary {
   onions: BackendOnion[];
 }
 
-export function adaptBackendOnionToFrontend(onion: BackendOnion, index: number): OnionItem {
+export function adaptBackendOnionToFrontend(onion: BackendOnion, index: number, defaultImageUrl?: string): OnionItem {
   const defects: DefectType[] = onion.defect_tags && onion.defect_tags.length > 0
     ? (onion.defect_tags as DefectType[])
     : ['None'];
+
+  let bbox = onion.bbox || {
+    x: 10 + (index % 5) * 18,
+    y: 15 + Math.floor(index / 5) * 20,
+    width: 14,
+    height: 16,
+  };
+
+  // If bounding box has raw pixel values (>100), normalize to percentage fallback
+  if (bbox.x > 100 || bbox.y > 100 || bbox.width > 100 || bbox.height > 100) {
+    bbox = {
+      x: Math.min(Math.round((bbox.x / 1200) * 100 * 10) / 10, 85),
+      y: Math.min(Math.round((bbox.y / 800) * 100 * 10) / 10, 85),
+      width: Math.min(Math.round((bbox.width / 1200) * 100 * 10) / 10, 30),
+      height: Math.min(Math.round((bbox.height / 800) * 100 * 10) / 10, 30),
+    };
+  }
 
   return {
     id: onion.id,
@@ -45,13 +62,8 @@ export function adaptBackendOnionToFrontend(onion: BackendOnion, index: number):
     grade: (onion.predicted_grade || 'B').toUpperCase() as GradeType,
     confidence: onion.confidence ? Math.round(onion.confidence * 1000) / 10 : 92.5,
     defects,
-    thumbnailUrl: 'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?q=80&w=300&auto=format&fit=crop',
-    boundingBox: onion.bbox || {
-      x: 10 + (index % 5) * 18,
-      y: 15 + Math.floor(index / 5) * 20,
-      width: 14,
-      height: 16,
-    },
+    thumbnailUrl: defaultImageUrl || 'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?q=80&w=300&auto=format&fit=crop',
+    boundingBox: bbox,
     overriddenGrade: onion.final_grade && onion.final_grade !== onion.predicted_grade
       ? (onion.final_grade.toUpperCase() as GradeType)
       : undefined,
@@ -60,15 +72,19 @@ export function adaptBackendOnionToFrontend(onion: BackendOnion, index: number):
 }
 
 export function adaptBackendBatchToFrontend(batch: BackendBatchDetail): BatchRecord {
-  const items = (batch.onions || []).map((o, idx) => adaptBackendOnionToFrontend(o, idx));
+  const cachedImage = typeof window !== 'undefined'
+    ? (sessionStorage.getItem(`batch_image_${batch.id}`) || sessionStorage.getItem('latest_upload_image'))
+    : null;
+
+  const imageUrl = (batch.id && batch.image_path)
+    ? getApiUrl(`/batches/${batch.id}/image`)
+    : (cachedImage || 'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?q=80&w=1200&auto=format&fit=crop');
+
+  const items = (batch.onions || []).map((o, idx) => adaptBackendOnionToFrontend(o, idx, imageUrl));
 
   const gradeACount = items.filter((i) => (i.overriddenGrade || i.grade) === 'A').length;
   const gradeBCount = items.filter((i) => (i.overriddenGrade || i.grade) === 'B').length;
   const gradeCCount = items.filter((i) => (i.overriddenGrade || i.grade) === 'C').length;
-
-  const imageUrl = batch.id && batch.image_path
-    ? getApiUrl(`/batches/${batch.id}/image`)
-    : 'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?q=80&w=1200&auto=format&fit=crop';
 
   return {
     id: batch.id,

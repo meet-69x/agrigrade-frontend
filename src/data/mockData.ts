@@ -1,11 +1,11 @@
 import type { BatchRecord, ProcurementCentre, OnionItem } from '../types';
 
 export const MOCK_CENTRES: ProcurementCentre[] = [
-  { id: 'CEN-NSK-04', name: 'Nashik Mandi Procurement Centre #4', location: 'Nashik', state: 'Maharashtra', activeLines: 6, dailyCapacityTons: 120 },
-  { id: 'CEN-LSG-12', name: 'Lasalgaon APMC Inspection Yard #12', location: 'Lasalgaon', state: 'Maharashtra', activeLines: 8, dailyCapacityTons: 200 },
-  { id: 'CEN-NMC-02', name: 'Neemuch Grain & Produce Centre #2', location: 'Neemuch', state: 'Madhya Pradesh', activeLines: 4, dailyCapacityTons: 85 },
-  { id: 'CEN-KRN-01', name: 'Karnal Agri Procurement Hub #1', location: 'Karnal', state: 'Haryana', activeLines: 5, dailyCapacityTons: 110 },
-  { id: 'CEN-MDR-03', name: 'Madurai APMC Quality Line #3', location: 'Madurai', state: 'Tamil Nadu', activeLines: 4, dailyCapacityTons: 75 },
+  { id: '00000000-0000-0000-0000-000000000001', name: 'Nashik Mandi Procurement Centre #4', location: 'Nashik', state: 'Maharashtra', activeLines: 6, dailyCapacityTons: 120 },
+  { id: '00000000-0000-0000-0000-000000000002', name: 'Lasalgaon APMC Inspection Yard #12', location: 'Lasalgaon', state: 'Maharashtra', activeLines: 8, dailyCapacityTons: 200 },
+  { id: '00000000-0000-0000-0000-000000000003', name: 'Neemuch Grain & Produce Centre #2', location: 'Neemuch', state: 'Madhya Pradesh', activeLines: 4, dailyCapacityTons: 85 },
+  { id: '00000000-0000-0000-0000-000000000004', name: 'Karnal Agri Procurement Hub #1', location: 'Karnal', state: 'Haryana', activeLines: 5, dailyCapacityTons: 110 },
+  { id: '00000000-0000-0000-0000-000000000005', name: 'Madurai APMC Quality Line #3', location: 'Madurai', state: 'Tamil Nadu', activeLines: 4, dailyCapacityTons: 75 },
 ];
 
 export const MOCK_ONION_ITEMS_BATCH_1: OnionItem[] = [

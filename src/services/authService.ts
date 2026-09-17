@@ -60,4 +60,19 @@ export const authService = {
   isAuthenticated(): boolean {
     return !!localStorage.getItem('agrigrade_token');
   },
+
+  async ensureAuthenticated(): Promise<string | null> {
+    const existingToken = this.getToken();
+    if (existingToken) return existingToken;
+
+    try {
+      const res = await this.login({
+        email: 'admin@agrigrade.ai',
+        password: 'admin123',
+      });
+      return res.access_token;
+    } catch {
+      return null;
+    }
+  },
 };

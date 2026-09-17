@@ -18,16 +18,41 @@ import { TiltCard } from '../components/common/TiltCard';
 import { MagneticButton } from '../components/common/MagneticButton';
 import { MOCK_BATCHES } from '../data/mockData';
 import type { GradeType, OnionItem, BatchRecord } from '../types';
-import { batchService, onionService } from '../services';
+import { batchService, onionService, authService } from '../services';
 
 export const ResultsPage: React.FC = () => {
   const { batchId } = useParams<{ batchId: string }>();
   const navigate = useNavigate();
 
-  const defaultBatch = MOCK_BATCHES.find((b) => b.id === batchId) || MOCK_BATCHES[0];
-  const [currentBatch, setCurrentBatch] = useState<BatchRecord>(defaultBatch);
+  const getInitialBatch = (): BatchRecord => {
+    if (batchId) {
+      const storedCustom = sessionStorage.getItem(`custom_batch_${batchId}`);
+      if (storedCustom) {
+        try {
+          return JSON.parse(storedCustom) as BatchRecord;
+        } catch (e) {
+          console.warn('Failed to parse custom batch', e);
+        }
+      }
+      const cachedImage = sessionStorage.getItem(`batch_image_${batchId}`) || sessionStorage.getItem('latest_upload_image');
+      const base = MOCK_BATCHES.find((b) => b.id === batchId) || MOCK_BATCHES[0];
+      if (cachedImage) {
+        return {
+          ...base,
+          id: batchId,
+          batchNumber: batchId.startsWith('AG-') ? batchId : base.batchNumber,
+          imageUrl: cachedImage,
+          items: base.items.map((i) => ({ ...i, thumbnailUrl: cachedImage })),
+        };
+      }
+      return base;
+    }
+    return MOCK_BATCHES[0];
+  };
 
-  const [items, setItems] = useState<OnionItem[]>(defaultBatch.items);
+  const initialBatch = getInitialBatch();
+  const [currentBatch, setCurrentBatch] = useState<BatchRecord>(initialBatch);
+  const [items, setItems] = useState<OnionItem[]>(initialBatch.items);
   const [hoveredOnionId, setHoveredOnionId] = useState<string | null>(null);
   const [selectedOnion, setSelectedOnion] = useState<OnionItem | null>(null);
   const [overrideModalOpen, setOverrideModalOpen] = useState(false);
@@ -38,13 +63,50 @@ export const ResultsPage: React.FC = () => {
 
   useEffect(() => {
     if (!batchId) return;
-    batchService.getBatchDetail(batchId).then((batchRecord) => {
-      if (batchRecord) {
-        setCurrentBatch(batchRecord);
-        setItems(batchRecord.items);
+
+    // 1. Check custom batch in sessionStorage
+    const storedCustom = sessionStorage.getItem(`custom_batch_${batchId}`);
+    if (storedCustom) {
+      try {
+        const parsed = JSON.parse(storedCustom) as BatchRecord;
+        setCurrentBatch(parsed);
+        setItems(parsed.items);
+        return;
+      } catch (e) {
+        console.warn('Could not parse stored custom batch:', e);
       }
-    }).catch(() => {
-      // Backend offline: keep fallback mock batch
+    }
+
+    const cachedImage = sessionStorage.getItem(`batch_image_${batchId}`) || sessionStorage.getItem('latest_upload_image');
+
+    // 2. Fetch from backend if available
+    const baseBatch = MOCK_BATCHES.find((b) => b.id === batchId) || MOCK_BATCHES[0];
+
+    authService.ensureAuthenticated().then(() => {
+      batchService.getBatchDetail(batchId).then((batchRecord) => {
+        if (batchRecord) {
+          const finalImageUrl = cachedImage || batchRecord.imageUrl;
+          const updatedItems = batchRecord.items.map((item: OnionItem) => ({
+            ...item,
+            thumbnailUrl: finalImageUrl,
+          }));
+          setCurrentBatch({ ...batchRecord, imageUrl: finalImageUrl, items: updatedItems });
+          setItems(updatedItems);
+        }
+      }).catch(() => {
+        // Backend offline fallback: apply cached image to fallback batch
+        if (cachedImage) {
+          const updatedBatch = {
+            ...baseBatch,
+            id: batchId,
+            batchNumber: batchId,
+            imageUrl: cachedImage,
+            items: baseBatch.items.map((item: OnionItem) => ({ ...item, thumbnailUrl: cachedImage })),
+          };
+          setCurrentBatch(updatedBatch);
+          setItems(updatedBatch.items);
+        }
+      });
     });
   }, [batchId]);
 

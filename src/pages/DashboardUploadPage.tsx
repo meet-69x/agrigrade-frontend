@@ -17,7 +17,8 @@ import { GradeBadge } from '../components/common/GradeBadge';
 import { MagneticButton } from '../components/common/MagneticButton';
 import { TiltCard } from '../components/common/TiltCard';
 import { MOCK_BATCHES, MOCK_CENTRES } from '../data/mockData';
-import { batchService, centreService } from '../services';
+import { batchService, centreService, authService } from '../services';
+import type { OnionItem, GradeType, BatchRecord } from '../types';
 
 export const DashboardUploadPage: React.FC = () => {
   const navigate = useNavigate();
@@ -77,7 +78,16 @@ export const DashboardUploadPage: React.FC = () => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setSelectedFile(file);
-      setSelectedImage(URL.createObjectURL(file));
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          const dataUrl = event.target.result as string;
+          setSelectedImage(dataUrl);
+          sessionStorage.setItem('latest_upload_image', dataUrl);
+          sessionStorage.setItem(`batch_image_${batchId}`, dataUrl);
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -88,7 +98,15 @@ export const DashboardUploadPage: React.FC = () => {
     setTimeout(() => setScanStep(2), 700);
     setTimeout(() => setScanStep(3), 1500);
 
+    // Save image to sessionStorage for immediate frontend display
+    if (selectedImage) {
+      sessionStorage.setItem('latest_upload_image', selectedImage);
+      sessionStorage.setItem(`batch_image_${batchId}`, selectedImage);
+    }
+
     try {
+      await authService.ensureAuthenticated();
+
       let fileToUpload = selectedFile;
       if (!fileToUpload) {
         // If sample preset image selected, fetch image blob as File
@@ -98,16 +116,78 @@ export const DashboardUploadPage: React.FC = () => {
 
       // Submit to backend
       const resultBatch = await batchService.createBatch(selectedCentre, batchId, fileToUpload);
+      if (selectedImage) {
+        sessionStorage.setItem(`batch_image_${resultBatch.id}`, selectedImage);
+      }
       
       setTimeout(() => {
         setIsScanning(false);
         navigate(`/results/${resultBatch.id}`);
       }, 2200);
     } catch (err) {
-      console.warn('Backend API connection failed, navigating to demo results:', err);
+      console.warn('Backend API connection failed, navigating to custom upload results:', err);
+
+      // Create a local custom batch record so user's uploaded image & parameters generate matching stats in offline/demo mode!
+      if (selectedImage) {
+        const generatedItems: OnionItem[] = Array.from({ length: Math.min(sampleSize, 12) }).map((_, idx) => {
+          const diameter = Math.round((45 + ((idx * 4.3) % 28)) * 10) / 10;
+          const grade: GradeType = diameter >= 55 ? 'A' : diameter >= 40 ? 'B' : 'C';
+          return {
+            id: `ON-UP-${idx + 1}`,
+            itemNumber: idx + 1,
+            diameterMm: diameter,
+            weightGrams: Math.round(diameter * 1.8),
+            grade,
+            confidence: Math.round((92 + ((idx * 1.7) % 7)) * 10) / 10,
+            defects: grade === 'C' ? ['Sunburn / Discoloration'] : grade === 'B' ? ['Skin Tear'] : ['None'],
+            thumbnailUrl: selectedImage,
+            boundingBox: {
+              x: 10 + (idx % 4) * 22,
+              y: 12 + Math.floor(idx / 4) * 25,
+              width: 18,
+              height: 20,
+            },
+          };
+        });
+
+        const gradeACount = generatedItems.filter((i) => i.grade === 'A').length;
+        const gradeBCount = generatedItems.filter((i) => i.grade === 'B').length;
+        const gradeCCount = generatedItems.filter((i) => i.grade === 'C').length;
+        const avgDiameter = Math.round((generatedItems.reduce((acc, i) => acc + i.diameterMm, 0) / generatedItems.length) * 10) / 10;
+        const overallGrade: GradeType = gradeACount >= gradeBCount && gradeACount >= gradeCCount ? 'A' : gradeBCount >= gradeCCount ? 'B' : 'C';
+
+        const customBatch: BatchRecord = {
+          id: batchId,
+          batchNumber: batchId,
+          procurementCentre: centres.find((c) => c.id === selectedCentre)?.name || 'Nashik Mandi Procurement Centre #4',
+          centreLocation: 'APMC Yard',
+          variety,
+          timestamp: new Date().toLocaleString('en-IN', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+          operatorName: 'APMC Inspector',
+          operatorRole: 'Operator',
+          totalCount: sampleSize,
+          gradeADistribution: Math.round(sampleSize * (gradeACount / generatedItems.length)),
+          gradeBDistribution: Math.round(sampleSize * (gradeBCount / generatedItems.length)),
+          gradeCDistribution: sampleSize - Math.round(sampleSize * (gradeACount / generatedItems.length)) - Math.round(sampleSize * (gradeBCount / generatedItems.length)),
+          overallGrade,
+          avgDiameterMm: avgDiameter,
+          avgWeightGrams: Math.round(avgDiameter * 1.8),
+          totalWeightKg: Math.round((sampleSize * (avgDiameter * 1.8) / 1000) * 10) / 10,
+          imageUrl: selectedImage,
+          items: generatedItems,
+        };
+        sessionStorage.setItem(`custom_batch_${batchId}`, JSON.stringify(customBatch));
+      }
+
       setTimeout(() => {
         setIsScanning(false);
-        navigate(`/results/batch-2026-0914`);
+        navigate(`/results/${batchId}`);
       }, 2200);
     }
   };

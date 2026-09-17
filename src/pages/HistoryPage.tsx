@@ -10,7 +10,7 @@ import {
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { GradeBadge } from '../components/common/GradeBadge';
 import { MOCK_BATCHES, MOCK_CENTRES } from '../data/mockData';
-import { batchService } from '../services';
+import { batchService, authService } from '../services';
 import type { BatchRecord } from '../types';
 
 export const HistoryPage: React.FC = () => {
@@ -23,19 +23,37 @@ export const HistoryPage: React.FC = () => {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
-    batchService.getBatches().then(async (summaries) => {
-      if (summaries && summaries.length > 0) {
-        // Fetch details or format summaries
-        const fullRecords = await Promise.all(
-          summaries.map((s) => batchService.getBatchDetail(s.id).catch(() => null))
-        );
-        const validRecords = fullRecords.filter((r): r is BatchRecord => r !== null);
-        if (validRecords.length > 0) {
-          setBatches(validRecords);
+    const customBatches: BatchRecord[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key && key.startsWith('custom_batch_')) {
+        try {
+          const item = JSON.parse(sessionStorage.getItem(key) || '');
+          if (item && item.id) {
+            customBatches.push(item);
+          }
+        } catch {
+          // ignore
         }
       }
-    }).catch(() => {
-      // Backend offline: retain mock batches
+    }
+
+    setBatches([...customBatches, ...MOCK_BATCHES]);
+
+    authService.ensureAuthenticated().then(() => {
+      batchService.getBatches().then(async (summaries) => {
+        if (summaries && summaries.length > 0) {
+          const fullRecords = await Promise.all(
+            summaries.map((s) => batchService.getBatchDetail(s.id).catch(() => null))
+          );
+          const validRecords = fullRecords.filter((r): r is BatchRecord => r !== null);
+          if (validRecords.length > 0) {
+            setBatches([...customBatches, ...validRecords]);
+          }
+        }
+      }).catch(() => {
+        // Backend offline: keep local custom + mock batches
+      });
     });
   }, []);
 
