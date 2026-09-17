@@ -1,11 +1,25 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+export function getApiBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    const customUrl = localStorage.getItem('agrigrade_api_url');
+    if (customUrl && customUrl.trim() !== '') {
+      return customUrl.trim().replace(/\/$/, '');
+    }
+  }
+
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl && envUrl.trim() !== '') {
+    return envUrl.trim().replace(/\/$/, '');
+  }
+
+  return 'http://localhost:8000';
+}
 
 export function getApiUrl(path: string): string {
   if (path.startsWith('http://') || path.startsWith('https://')) {
     return path;
   }
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  return `${API_BASE}${cleanPath}`;
+  return `${getApiBaseUrl()}${cleanPath}`;
 }
 
 export async function apiFetch<T>(
