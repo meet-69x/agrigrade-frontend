@@ -83,7 +83,6 @@ export const DashboardUploadPage: React.FC = () => {
         if (event.target?.result) {
           const dataUrl = event.target.result as string;
           setSelectedImage(dataUrl);
-          sessionStorage.setItem(`batch_image_${batchId}`, dataUrl);
         }
       };
       reader.readAsDataURL(file);
@@ -97,9 +96,18 @@ export const DashboardUploadPage: React.FC = () => {
     setTimeout(() => setScanStep(2), 700);
     setTimeout(() => setScanStep(3), 1500);
 
+    // Generate a fresh, unique scan ID for THIS scan to prevent sessionStorage key collisions
+    const scanBatchId = `AG-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+    // Clear any stale sessionStorage entries from previous scans with the same batchId
+    sessionStorage.removeItem(`batch_image_${batchId}`);
+    sessionStorage.removeItem(`custom_batch_${batchId}`);
+    sessionStorage.removeItem(`batch_image_${scanBatchId}`);
+    sessionStorage.removeItem(`custom_batch_${scanBatchId}`);
+
     // Save image to sessionStorage for immediate frontend display
     if (selectedImage) {
-      sessionStorage.setItem(`batch_image_${batchId}`, selectedImage);
+      sessionStorage.setItem(`batch_image_${scanBatchId}`, selectedImage);
     }
 
     try {
@@ -114,9 +122,14 @@ export const DashboardUploadPage: React.FC = () => {
 
       // Submit to backend
       const resultBatch = await batchService.createBatch(selectedCentre, batchId, fileToUpload);
+      
+      // Store the uploaded image under the backend's returned batch ID
+      // This is the ID the results page will navigate to
       if (selectedImage) {
         sessionStorage.setItem(`batch_image_${resultBatch.id}`, selectedImage);
       }
+      // Clean up the temporary scanBatchId key since we now use the real backend ID
+      sessionStorage.removeItem(`batch_image_${scanBatchId}`);
       
       setTimeout(() => {
         setIsScanning(false);
@@ -155,7 +168,7 @@ export const DashboardUploadPage: React.FC = () => {
         const overallGrade: GradeType = gradeACount >= gradeBCount && gradeACount >= gradeCCount ? 'A' : gradeBCount >= gradeCCount ? 'B' : 'C';
 
         const customBatch: BatchRecord = {
-          id: batchId,
+          id: scanBatchId,
           batchNumber: batchId,
           procurementCentre: centres.find((c) => c.id === selectedCentre)?.name || 'Nashik Mandi Procurement Centre #4',
           centreLocation: 'APMC Yard',
@@ -180,12 +193,12 @@ export const DashboardUploadPage: React.FC = () => {
           imageUrl: selectedImage,
           items: generatedItems,
         };
-        sessionStorage.setItem(`custom_batch_${batchId}`, JSON.stringify(customBatch));
+        sessionStorage.setItem(`custom_batch_${scanBatchId}`, JSON.stringify(customBatch));
       }
 
       setTimeout(() => {
         setIsScanning(false);
-        navigate(`/results/${batchId}`);
+        navigate(`/results/${scanBatchId}`);
       }, 2200);
     }
   };

@@ -64,24 +64,10 @@ export const ResultsPage: React.FC = () => {
   useEffect(() => {
     if (!batchId) return;
 
-    // 1. Check custom batch in sessionStorage
-    const storedCustom = sessionStorage.getItem(`custom_batch_${batchId}`);
-    if (storedCustom) {
-      try {
-        const parsed = JSON.parse(storedCustom) as BatchRecord;
-        setCurrentBatch(parsed);
-        setItems(parsed.items);
-        return;
-      } catch (e) {
-        console.warn('Could not parse stored custom batch:', e);
-      }
-    }
-
     const cachedImage = sessionStorage.getItem(`batch_image_${batchId}`);
+    const storedCustom = sessionStorage.getItem(`custom_batch_${batchId}`);
 
-    // 2. Fetch from backend if available
-    const baseBatch = MOCK_BATCHES.find((b) => b.id === batchId) || MOCK_BATCHES[0];
-
+    // Always attempt backend fetch first for fresh data
     authService.ensureAuthenticated().then(() => {
       batchService.getBatchDetail(batchId).then((batchRecord) => {
         if (batchRecord) {
@@ -93,9 +79,24 @@ export const ResultsPage: React.FC = () => {
           }));
           setCurrentBatch({ ...batchRecord, imageUrl: finalImageUrl, items: updatedItems });
           setItems(updatedItems);
+          // Clean up sessionStorage since we now have authoritative backend data
+          sessionStorage.removeItem(`custom_batch_${batchId}`);
         }
       }).catch(() => {
-        // Backend offline fallback: apply cached image for this batchId if available
+        // Backend offline fallback: use custom batch from sessionStorage if available
+        if (storedCustom) {
+          try {
+            const parsed = JSON.parse(storedCustom) as BatchRecord;
+            setCurrentBatch(parsed);
+            setItems(parsed.items);
+            return;
+          } catch (e) {
+            console.warn('Could not parse stored custom batch:', e);
+          }
+        }
+
+        // Last resort: use cached image with mock data structure
+        const baseBatch = MOCK_BATCHES.find((b) => b.id === batchId) || MOCK_BATCHES[0];
         if (cachedImage) {
           const updatedBatch = {
             ...baseBatch,
