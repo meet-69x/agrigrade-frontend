@@ -140,23 +140,30 @@ export const DashboardUploadPage: React.FC = () => {
 
       // Create a local custom batch record so user's uploaded image & parameters generate matching stats in offline/demo mode!
       if (selectedImage) {
+        const seed = Date.now();
+        const rand = (i: number) => {
+          // Simple seeded pseudo-random so each scan is different
+          const x = Math.sin(seed + i * 9301 + 49297) * 49297;
+          return x - Math.floor(x);
+        };
+
         const generatedItems: OnionItem[] = Array.from({ length: Math.min(sampleSize, 12) }).map((_, idx) => {
-          const diameter = Math.round((45 + ((idx * 4.3) % 28)) * 10) / 10;
+          const diameter = Math.round((35 + rand(idx) * 35) * 10) / 10;  // 35-70mm range
           const grade: GradeType = diameter >= 55 ? 'A' : diameter >= 40 ? 'B' : 'C';
           return {
-            id: `ON-UP-${idx + 1}`,
+            id: `ON-${scanBatchId}-${idx + 1}`,
             itemNumber: idx + 1,
             diameterMm: diameter,
-            weightGrams: Math.round(diameter * 1.8),
+            weightGrams: Math.round(diameter * (1.5 + rand(idx + 100) * 0.8)),
             grade,
-            confidence: Math.round((92 + ((idx * 1.7) % 7)) * 10) / 10,
+            confidence: Math.round((88 + rand(idx + 200) * 10) * 10) / 10,
             defects: grade === 'C' ? ['Sunburn / Discoloration'] : grade === 'B' ? ['Skin Tear'] : ['None'],
             thumbnailUrl: selectedImage,
             boundingBox: {
-              x: 10 + (idx % 4) * 22,
-              y: 12 + Math.floor(idx / 4) * 25,
-              width: 18,
-              height: 20,
+              x: 8 + (idx % 4) * 22 + rand(idx + 300) * 4,
+              y: 10 + Math.floor(idx / 4) * 25 + rand(idx + 400) * 4,
+              width: 16 + rand(idx + 500) * 4,
+              height: 18 + rand(idx + 600) * 4,
             },
           };
         });
