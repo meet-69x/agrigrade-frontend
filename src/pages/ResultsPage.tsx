@@ -34,7 +34,7 @@ export const ResultsPage: React.FC = () => {
           console.warn('Failed to parse custom batch', e);
         }
       }
-      const cachedImage = sessionStorage.getItem(`batch_image_${batchId}`) || sessionStorage.getItem('latest_upload_image');
+      const cachedImage = sessionStorage.getItem(`batch_image_${batchId}`);
       const base = MOCK_BATCHES.find((b) => b.id === batchId) || MOCK_BATCHES[0];
       if (cachedImage) {
         return {
@@ -77,7 +77,7 @@ export const ResultsPage: React.FC = () => {
       }
     }
 
-    const cachedImage = sessionStorage.getItem(`batch_image_${batchId}`) || sessionStorage.getItem('latest_upload_image');
+    const cachedImage = sessionStorage.getItem(`batch_image_${batchId}`);
 
     // 2. Fetch from backend if available
     const baseBatch = MOCK_BATCHES.find((b) => b.id === batchId) || MOCK_BATCHES[0];
@@ -85,7 +85,8 @@ export const ResultsPage: React.FC = () => {
     authService.ensureAuthenticated().then(() => {
       batchService.getBatchDetail(batchId).then((batchRecord) => {
         if (batchRecord) {
-          const finalImageUrl = cachedImage || batchRecord.imageUrl;
+          const isRealBackendUrl = batchRecord.imageUrl && batchRecord.imageUrl.startsWith('http') && !batchRecord.imageUrl.includes('unsplash');
+          const finalImageUrl = isRealBackendUrl ? batchRecord.imageUrl : (cachedImage || batchRecord.imageUrl);
           const updatedItems = batchRecord.items.map((item: OnionItem) => ({
             ...item,
             thumbnailUrl: finalImageUrl,
@@ -94,7 +95,7 @@ export const ResultsPage: React.FC = () => {
           setItems(updatedItems);
         }
       }).catch(() => {
-        // Backend offline fallback: apply cached image to fallback batch
+        // Backend offline fallback: apply cached image for this batchId if available
         if (cachedImage) {
           const updatedBatch = {
             ...baseBatch,

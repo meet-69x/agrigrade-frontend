@@ -83,7 +83,6 @@ export const DashboardUploadPage: React.FC = () => {
         if (event.target?.result) {
           const dataUrl = event.target.result as string;
           setSelectedImage(dataUrl);
-          sessionStorage.setItem('latest_upload_image', dataUrl);
           sessionStorage.setItem(`batch_image_${batchId}`, dataUrl);
         }
       };
@@ -100,7 +99,6 @@ export const DashboardUploadPage: React.FC = () => {
 
     // Save image to sessionStorage for immediate frontend display
     if (selectedImage) {
-      sessionStorage.setItem('latest_upload_image', selectedImage);
       sessionStorage.setItem(`batch_image_${batchId}`, selectedImage);
     }
 

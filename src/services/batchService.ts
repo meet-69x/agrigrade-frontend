@@ -73,7 +73,7 @@ export function adaptBackendOnionToFrontend(onion: BackendOnion, index: number, 
 
 export function adaptBackendBatchToFrontend(batch: BackendBatchDetail): BatchRecord {
   const cachedImage = typeof window !== 'undefined'
-    ? (sessionStorage.getItem(`batch_image_${batch.id}`) || sessionStorage.getItem('latest_upload_image'))
+    ? sessionStorage.getItem(`batch_image_${batch.id}`)
     : null;
 
   const imageUrl = (batch.id && batch.image_path)
